@@ -98,16 +98,15 @@ class DartdocDirective(SphinxDirective):
         return package
 
     def _get_root_from_config(self):
-        if self.package:
-            roots = self.env.config.dartdoc_roots
-            if self.package not in roots:
-                raise self.error(
-                    f'Unknown package name `{self.package}`: please include it in the '
-                    f'`dartdoc_roots` configuration setting (file conf.py).'
-                )
-            return roots[self.package]
-        else:
+        if not self.package:
             return self.env.config.dartdoc_root
+        roots = self.env.config.dartdoc_roots
+        if self.package not in roots:
+            raise self.error(
+                f'Unknown package name `{self.package}`: please include it in the '
+                f'`dartdoc_roots` configuration setting (file conf.py).'
+            )
+        return roots[self.package]
 
     def _parse_option_file(self):
         path = os.path.join(self.root, self.options['file'])
@@ -132,9 +131,8 @@ class DartdocDirective(SphinxDirective):
             line = line.strip()
             if not line:
                 continue
-            match = re.fullmatch(rx_reference_line, line)
-            if match:
-                links[match.group(1)] = match.group(2)
+            if match := re.fullmatch(rx_reference_line, line):
+                links[match[1]] = match[2]
             else:
                 raise self.error(
                     f'Invalid reference definition: `{line}`; expected the '
@@ -173,9 +171,7 @@ class DartdocDirective(SphinxDirective):
             # `subprocess.run()`.
             temp_file.close()
             try:
-                executable = 'dartdoc_json'
-                if os.name == 'nt':  # Windows
-                    executable = 'dartdoc_json.bat'
+                executable = 'dartdoc_json.bat' if os.name == 'nt' else 'dartdoc_json'
                 subprocess.run(
                     [executable, self.source_file, '--output', temp_file.name],
                     stdout=subprocess.PIPE,
@@ -202,7 +198,7 @@ class DartdocDirective(SphinxDirective):
         if type(json_obj) != list or len(json_obj) != 1:
             string = str(json_obj)
             if len(string) > 100:
-                string = string[:97] + '...'
+                string = f'{string[:97]}...'
             raise TypeError(
                 f'Invalid JSON output: a list of length 1 was expected, '
                 f'instead received `{string}`'
@@ -412,7 +408,7 @@ class DartdocDirective(SphinxDirective):
                         fields[i] = None
         result = nodes.section(ids=['properties'])
         result += nodes.title(text='Properties')
-        for i, field in enumerate(fields):
+        for field in fields:
             if field is not None:
                 result += self._generate_node_for_declaration(field, level + 1)
         return result
@@ -579,31 +575,33 @@ class DartDomain(Domain):
 
     def resolve_xref(self, env: BuildEnvironment, fromdocname: str, builder: Builder,
                      typ: str, target: str, node: pending_xref, contnode: Element
-                     ) \
-            -> Optional[Element]:
+                     ) -> Optional[Element]:
         target_id = target
         if '-' in target:
             target, suffix = target.split('-', 2)
-        symbol_data = None
-        for package, package_data in self.data['objects'].items():
-            if target in package_data:
-                symbol_data = package_data[target]
-                break
-        if not symbol_data:
+        if symbol_data := next(
+            (
+                package_data[target]
+                for package, package_data in self.data['objects'].items()
+                if target in package_data
+            ),
+            None,
+        ):
+            return make_refnode(
+                builder=builder,
+                fromdocname=fromdocname,
+                todocname=symbol_data['docname'],
+                targetid=target_id,
+                child=contnode,
+                title=None,
+            )
+        else:
             return None
-        return make_refnode(
-            builder=builder,
-            fromdocname=fromdocname,
-            todocname=symbol_data['docname'],
-            targetid=target_id,
-            child=contnode,
-            title=None,
-        )
 
 
 def copy_asset_files(app, exc):
     assert __file__.endswith('dart_domain.py')
-    css_file = __file__[:-2] + 'css'
+    css_file = f'{__file__[:-2]}css'
     if not os.path.isfile(css_file):
         raise FileNotFoundError(f'Missing file `{css_file}`')
     if app.builder.format == 'html' and not exc:
@@ -639,10 +637,11 @@ def on_env_get_outdated(_: Sphinx, env: BuildEnvironment, added: Set[str], chang
 # https://www.sphinx-doc.org/en/master/extdev/appapi.html#event-env-purge-doc
 def on_env_purge_doc(_: Sphinx, env: BuildEnvironment, docname: str) -> None:
     for package, package_data in env.domaindata['dart']['objects'].items():
-        symbols_to_remove = []
-        for symbol, record in package_data.items():
-            if record['docname'] == docname:
-                symbols_to_remove.append(symbol)
+        symbols_to_remove = [
+            symbol
+            for symbol, record in package_data.items()
+            if record['docname'] == docname
+        ]
         for symbol in symbols_to_remove:
             del package_data[symbol]
 
@@ -656,9 +655,7 @@ def on_env_before_read_docs(_: Sphinx, __: BuildEnvironment, docnames: List[str]
     # This ensures that within each directory, the 'index.md' document is processed first.
     def key(docname: str) -> str:
         basename = os.path.basename(docname)
-        if docname == 'index':
-            return '_index'
-        return basename
+        return '_index' if docname == 'index' else basename
 
     docnames.sort(key=key)
 

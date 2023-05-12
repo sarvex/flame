@@ -92,7 +92,7 @@ class FlutterAppDirective(SphinxDirective):
         self._process_sources_option()
         self.source_build_dir = os.path.join(self.source_dir, 'build', 'web')
         self.app_name = self._get_app_name()
-        self.html_dir = '_static/apps/' + self.app_name
+        self.html_dir = f'_static/apps/{self.app_name}'
         self.target_dir = os.path.abspath(
             os.path.join('..', '_build', 'html', self.html_dir))
         self._ensure_compiled()
@@ -108,12 +108,12 @@ class FlutterAppDirective(SphinxDirective):
                 width = self.options.get('width')
                 if width.isdigit():
                     width += 'px'
-                styles.append("width: " + width)
+                styles.append(f"width: {width}")
             if self.options.get('height'):
                 height = self.options.get('height')
                 if height.isdigit():
                     height += 'px'
-                styles.append("height: " + height)
+                styles.append(f"height: {height}")
             if styles:
                 iframe.attributes['style'] = '; '.join(styles)
         if 'popup' in self.modes:
@@ -124,14 +124,18 @@ class FlutterAppDirective(SphinxDirective):
                 onclick=f'run_flutter_app("{iframe_url}")',
             ))
         if 'code' in self.modes:
-            code_id = self.app_name + "-source-" + page
-            result.append(self._generate_code_listings(code_id))
-            result.append(Button(
-                '',
-                nodes.Text('Code'),
-                classes=['flutter-app-button', 'code'],
-                onclick=f'open_code_listings("{code_id}")',
-            ))
+            code_id = f"{self.app_name}-source-{page}"
+            result.extend(
+                (
+                    self._generate_code_listings(code_id),
+                    Button(
+                        '',
+                        nodes.Text('Code'),
+                        classes=['flutter-app-button', 'code'],
+                        onclick=f'open_code_listings("{code_id}")',
+                    ),
+                )
+            )
         if 'infobox' in self.modes:
             self.state.nested_parse(self.content, 0, result)
             result = [
@@ -140,12 +144,11 @@ class FlutterAppDirective(SphinxDirective):
         return result
 
     def _process_show_option(self):
-        argument = self.options.get('show')
-        if argument:
+        if argument := self.options.get('show'):
             values = argument.split()
             for value in values:
                 if value not in ['widget', 'popup', 'code', 'infobox']:
-                    raise self.error('Invalid :show: value ' + value)
+                    raise self.error(f'Invalid :show: value {value}')
             self.modes = values
         else:
             self.modes = ['widget']
@@ -172,19 +175,17 @@ class FlutterAppDirective(SphinxDirective):
         )
         if not need_compiling:
             return
-        self.logger.info('Compiling Flutter app [%s]' % self.app_name)
+        self.logger.info(f'Compiling Flutter app [{self.app_name}]')
         self._compile_source()
         self._copy_compiled()
         self._create_index_html()
-        self.logger.info('  + copied into ' + self.target_dir)
-        assert os.path.isfile(self.target_dir + '/main.dart.js')
-        assert os.path.isfile(self.target_dir + '/index.html')
+        self.logger.info(f'  + copied into {self.target_dir}')
+        assert os.path.isfile(f'{self.target_dir}/main.dart.js')
+        assert os.path.isfile(f'{self.target_dir}/index.html')
         FlutterAppDirective.COMPILED.append(self.source_dir)
 
     def _compile_source(self):
-        flutter_cmd = 'flutter'
-        if sys.platform == 'win32':
-            flutter_cmd = 'flutter.bat'
+        flutter_cmd = 'flutter.bat' if sys.platform == 'win32' else 'flutter'
         try:
             subprocess.run(
                 [flutter_cmd, 'build', 'web'],
@@ -229,11 +230,11 @@ class FlutterAppDirective(SphinxDirective):
         subfolder = self.options.get('subfolder', '')
         if subfolder and not subfolder.endswith('/'):
             subfolder += '/'
-        code_dir = self.source_dir + '/lib/' +  subfolder + self.options.get('page', '')
+        code_dir = f'{self.source_dir}/lib/{subfolder}' + self.options.get('page', '')
         if os.path.isdir(code_dir):
-            files = glob.glob(code_dir + '/**', recursive=True)
-        elif os.path.isfile(code_dir + '.dart'):
-            files = [code_dir + '.dart']
+            files = glob.glob(f'{code_dir}/**', recursive=True)
+        elif os.path.isfile(f'{code_dir}.dart'):
+            files = [f'{code_dir}.dart']
             code_dir += '/..'
         else:
             raise self.error(f'Cannot find source directory {code_dir} or '
@@ -257,9 +258,9 @@ class FlutterAppDirective(SphinxDirective):
 def _doc_root():
     root = os.environ.get('PUBLISH_PATH', '')
     if not root.startswith('/'):
-        root = '/' + root
+        root = f'/{root}'
     if not root.endswith('/'):
-        root = root + '/'
+        root = f'{root}/'
     return root
 
 

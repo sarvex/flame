@@ -124,14 +124,16 @@ def get_local_toc(document):
     if not titles:
         return ""
 
-    levels = sorted(set(item[2] for item in titles))
+    levels = sorted({item[2] for item in titles})
     if levels.index(titles[0][2]) != 0:
         return document.reporter.error(
             "First title on the page is not <h1/>")
     del titles[0]  # remove the <h1> title
 
-    html_text = "<div id='toc-local' class='list-group'>\n"
-    html_text += " <div class='header'><i class='fa fa-list'></i> Contents</div>\n"
+    html_text = (
+        "<div id='toc-local' class='list-group'>\n"
+        + " <div class='header'><i class='fa fa-list'></i> Contents</div>\n"
+    )
     for title, node_id, level in titles:
         if level <= 1:
             return document.reporter.error("More than one <h1> title on the page")

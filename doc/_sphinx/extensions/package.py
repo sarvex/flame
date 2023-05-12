@@ -28,8 +28,8 @@ class PackageDirective(SphinxDirective):
             if os.path.split(root)[-1] == pkg_name:
                 if 'index.md' in files:
                     return os.path.join(root, 'index.md')
-                elif pkg_name + '.md' in files:
-                    return os.path.join(root, pkg_name + '.md')
+                elif f'{pkg_name}.md' in files:
+                    return os.path.join(root, f'{pkg_name}.md')
                 elif len(files) == 1:
                     return os.path.join(root, files[0])
                 else:
